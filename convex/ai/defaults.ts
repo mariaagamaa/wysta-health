@@ -71,6 +71,11 @@ export const DEFAULT_CONFIGS: Partial<Record<AiPurpose, ConfigDefault>> = {
 
 // --- B (user-summary) ----------------------------------------------------
 
+// The model sometimes wrote the pre-1990 spelling ("contraceptivo") while the
+// app uses the Acordo Ortográfico ("contracetivo").
+export const ORTHOGRAPHY_RULE =
+  '- Escreve em português europeu segundo o Acordo Ortográfico de 1990 (ex.: "contracetivo", "ação", "ótimo"), nunca na grafia anterior nem na brasileira.';
+
 DEFAULT_PROMPTS['user-summary'] = {
   systemPrompt: [
     'És um assistente clínico que constrói um sumário de perfil para',
@@ -95,6 +100,7 @@ DEFAULT_PROMPTS['user-summary'] = {
     '  registo." em vez de inferir.',
     '- Não incluas nome próprio nem identificadores não-clínicos.',
     '- PT-PT, sem brasileirismos. Tom clínico, conciso.',
+    ORTHOGRAPHY_RULE,
   ].join('\n'),
   userTemplate: [
     'Dados estruturados:',
