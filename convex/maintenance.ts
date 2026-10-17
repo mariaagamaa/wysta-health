@@ -1,7 +1,7 @@
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
-import { CHAT_CLOSING_RULE } from './ai/defaults';
+import { CHAT_CLOSING_RULE, ORTHOGRAPHY_RULE } from './ai/defaults';
 import { toNurseWording } from './lib/nurseWording';
 import { toPatientWording } from './lib/patientWording';
 import type { Doc } from './_generated/dataModel';
@@ -102,13 +102,41 @@ export const usePatientWording = internalMutation({
     rewriteStoredPrompts(ctx, toPatientWording, '"o utente" passa a "a utente"', !!dryRun),
 });
 
+// One-off: the clinical profile (user-summary) wrote "contraceptivo". Adds
+// ORTHOGRAPHY_RULE (Acordo Ortográfico de 1990) to the stored user-summary
+// prompts, after the "PT-PT, sem brasileirismos" line, or at the end if an
+// admin removed that line.
+// Run: "bunx convex run maintenance:addOrthographyRule" (add --prod for prod),
+// with '{"dryRun": true}' first to only list what would change.
+const PT_PT_LINE = '- PT-PT, sem brasileirismos. Tom clínico, conciso.';
+export const addOrthographyRule = internalMutation({
+  args: { dryRun: v.optional(v.boolean()) },
+  handler: (ctx, { dryRun }) =>
+    rewriteStoredPrompts(
+      ctx,
+      (text) => {
+        if (text.includes(ORTHOGRAPHY_RULE)) return text;
+        return text.includes(PT_PT_LINE)
+          ? text.replace(PT_PT_LINE, `${PT_PT_LINE}\n${ORTHOGRAPHY_RULE}`)
+          : `${text}\n${ORTHOGRAPHY_RULE}`;
+      },
+      'grafia do Acordo Ortográfico de 1990',
+      !!dryRun,
+      'user-summary',
+      { userTemplate: false }
+    ),
+});
+
 // Inserts a new version (history kept) of every stored prompt that `rewrite`
-// changes. Returns the purpose/topic keys it touched.
+// changes, optionally only for one purpose (and leaving the user template
+// alone). Returns the purpose/topic keys it touched.
 async function rewriteStoredPrompts(
   ctx: MutationCtx,
   rewrite: (text: string) => string,
   notes: string,
-  dryRun: boolean
+  dryRun: boolean,
+  purpose?: string,
+  opts: { userTemplate: boolean } = { userTemplate: true }
 ) {
   // Latest version per purpose + topic (versions are rows; newest wins).
   const latest = new Map<string, Doc<'aiPrompts'>>();
@@ -118,8 +146,10 @@ async function rewriteStoredPrompts(
   }
   const updated: string[] = [];
   for (const [key, p] of latest) {
+    if (purpose && p.purpose !== purpose) continue;
     const systemPrompt = rewrite(p.systemPrompt);
-    const userTemplate = p.userTemplate === undefined ? undefined : rewrite(p.userTemplate);
+    const userTemplate =
+      p.userTemplate === undefined || !opts.userTemplate ? p.userTemplate : rewrite(p.userTemplate);
     if (systemPrompt === p.systemPrompt && userTemplate === p.userTemplate) continue;
     updated.push(key);
     if (dryRun) continue;

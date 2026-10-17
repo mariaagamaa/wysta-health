@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { convexTest } from 'convex-test';
 import schema from './schema';
 import { internal } from './_generated/api';
+import { ORTHOGRAPHY_RULE } from './ai/defaults';
 import type { Id } from './_generated/dataModel';
 
 const modules = import.meta.glob('./**/*.ts');
@@ -61,6 +62,34 @@ describe('maintenance.usePatientWording', () => {
 
     // Running again changes nothing.
     expect((await t.mutation(internal.maintenance.usePatientWording, {})).updated).toEqual([]);
+  });
+});
+
+describe('maintenance.addOrthographyRule', () => {
+  it('adds the spelling rule to the user-summary prompt only', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const createdBy = (await ctx.db.insert('users', {} as any)) as Id<'users'>;
+      await ctx.db.insert('aiPrompts', {
+        purpose: 'user-summary',
+        systemPrompt: 'Regras:\n- PT-PT, sem brasileirismos. Tom clínico, conciso.\n- Fim.',
+        createdBy,
+      });
+      await ctx.db.insert('aiPrompts', { purpose: 'chat', systemPrompt: 'Chat.', createdBy });
+    });
+
+    const dry = await t.mutation(internal.maintenance.addOrthographyRule, { dryRun: true });
+    expect(dry.updated).toEqual(['user-summary/']);
+
+    await t.mutation(internal.maintenance.addOrthographyRule, {});
+    const prompts = await t.run((ctx) => ctx.db.query('aiPrompts').order('desc').collect());
+    expect(prompts).toHaveLength(3);
+    expect(prompts[0].systemPrompt).toBe(
+      `Regras:\n- PT-PT, sem brasileirismos. Tom clínico, conciso.\n${ORTHOGRAPHY_RULE}\n- Fim.`
+    );
+
+    // Running again changes nothing.
+    expect((await t.mutation(internal.maintenance.addOrthographyRule, {})).updated).toEqual([]);
   });
 });
 
