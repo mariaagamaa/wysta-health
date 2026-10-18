@@ -40,7 +40,9 @@ Pré-requisitos: [bun](https://bun.sh), Xcode (iOS), Android Studio (Android).
 
 ```sh
 bun install
-bunx convex dev    # inicia deployment dev e gera .env.local + convex/_generated
+bunx convex deployment create filas:wysta:dev/<o-teu-nome> --type dev --region eu --select
+                   # cria o teu deployment dev (UE) e escreve o .env.local; só da primeira vez
+bunx convex dev    # sincroniza schema/funções e gera convex/_generated
 bun run start      # Expo dev server (i = iOS, a = Android, w = web)
 ```
 
@@ -74,7 +76,7 @@ A CF Pages dispara em cada push para `main`. O `--cmd` do `convex deploy` garant
 
 ## Domínios e localização
 
-- Backend Convex prod em **EU-west-1** (`loyal-dolphin-681.eu-west-1.convex.cloud`) por requisitos RGPD
+- Backend Convex prod em **EU-west-1** (`grandiose-anaconda-929.eu-west-1.convex.cloud`, equipa `filas`, projeto `wysta`) por requisitos RGPD
 - UI strings em PT-PT; código e comentários em inglês
 
 ## Documentação
